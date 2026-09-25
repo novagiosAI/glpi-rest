@@ -1,0 +1,72 @@
+# Disposable GLPI instances for running the integration test suite.
+#
+#     docker compose -f docker-compose.test.yml up -d
+#     ./scripts/enable-api.sh glpi11 8011      # then likewise for glpi10 / 8010
+#     pytest tests/test_integration.py
+#
+# GLPI 10 and GLPI 11 run side by side so the same suite can be checked against
+# both supported majors. Data lives in throwaway volumes: never point these at
+# anything real.
+
+name: glpi-rest-test
+
+services:
+  glpi11:
+    image: "glpi/glpi:11"
+    restart: "no"
+    depends_on: [db11]
+    environment:
+      GLPI_DB_HOST: db11
+      GLPI_DB_PORT: 3306
+      GLPI_DB_NAME: glpi
+      GLPI_DB_USER: glpi
+      GLPI_DB_PASSWORD: glpi
+      # All five variables above are required for GLPI to install itself
+      # unattended; if any is missing it falls back to the web wizard.
+    ports:
+      - "8011:80"
+    volumes:
+      - glpi11_data:/var/glpi
+
+  db11:
+    image: "mysql:8.0"
+    restart: "no"
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: glpi
+      MYSQL_USER: glpi
+      MYSQL_PASSWORD: glpi
+    volumes:
+      - db11_data:/var/lib/mysql
+
+  glpi10:
+    image: "glpi/glpi:10"
+    restart: "no"
+    depends_on: [db10]
+    environment:
+      GLPI_DB_HOST: db10
+      GLPI_DB_PORT: 3306
+      GLPI_DB_NAME: glpi
+      GLPI_DB_USER: glpi
+      GLPI_DB_PASSWORD: glpi
+    ports:
+      - "8010:80"
+    volumes:
+      - glpi10_data:/var/glpi
+
+  db10:
+    image: "mysql:8.0"
+    restart: "no"
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: glpi
+      MYSQL_USER: glpi
+      MYSQL_PASSWORD: glpi
+    volumes:
+      - db10_data:/var/lib/mysql
+
+volumes:
+  glpi11_data:
+  db11_data:
+  glpi10_data:
+  db10_data:

@@ -1,0 +1,44 @@
+name: Integration (live GLPI)
+
+# The unit suite runs on every push; this one boots real GLPI servers, so it
+# runs on demand and on a weekly schedule to catch upstream GLPI changes.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * 1"
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { glpi: glpi11, db: db11, port: 8011 }
+          - { glpi: glpi10, db: db10, port: 8010 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]"
+
+      - name: Start GLPI
+        run: docker compose -f docker-compose.test.yml up -d ${{ matrix.db }} ${{ matrix.glpi }}
+
+      - name: Enable the REST API
+        run: ./scripts/enable-api.sh ${{ matrix.glpi }} ${{ matrix.db }} ${{ matrix.port }}
+
+      - name: Run the integration suite
+        env:
+          GLPI_TEST_URL: http://localhost:${{ matrix.port }}/apirest.php
+          GLPI_TEST_APP_TOKEN: glpipy_test_app_token_0123456789
+          GLPI_TEST_USER_TOKEN: glpipy_test_user_token_9876543210
+          GLPI_TEST_USERNAME: glpi
+          GLPI_TEST_PASSWORD: glpi
+        run: pytest tests/test_integration.py -v
+
+      - name: GLPI logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.test.yml logs ${{ matrix.glpi }}
